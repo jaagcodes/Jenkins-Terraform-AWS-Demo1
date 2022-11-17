@@ -1,0 +1,88 @@
+pipeline {
+    environment {
+        imageName = "josealejo0812/simple-web-app:latest"
+        customImage = ''
+    }
+
+    agent any
+    stages {
+
+        stage('Build Image') {
+            steps {
+                script {
+                    customImage = docker.build(imageName, "./app/")
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            /* when {
+                branch "main"
+            } */
+            steps {
+                script {
+                    docker.withRegistry('', 'DockerhubCredentials') {
+                        customImage.push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sshPublisher(
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: 'Ec2_instance_1',
+                            transfers: [
+                                sshTransfer(
+                                    cleanRemote: false,
+                                    excludes: '',
+                                    execCommand: 'docker stop $(docker ps -a -q); docker rm $(docker ps -a -q); docker rmi -f $(docker images -aq); sudo docker run -p 80:8080 -d josealejo0812/simple-web-app:latest ;exit 0',
+                                    execTimeout: 600000,
+                                    flatten: false,
+                                    makeEmptyDirs: false,
+                                    noDefaultExcludes: false,
+                                    patternSeparator: '[, ]+',
+                                    remoteDirectory: '',
+                                    remoteDirectorySDF: false,
+                                    removePrefix: '',
+                                    sourceFiles: ''
+                                )
+                            ],
+                            usePromotionTimestamp: false,
+                            useWorkspaceInPromotion: false,
+                            verbose: false
+                        ),
+                    ]
+                )
+
+                sshPublisher(
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: 'Ec2_instance_2',
+                            transfers: [
+                                sshTransfer(
+                                    cleanRemote: false,
+                                    excludes: '',
+                                    execCommand: 'docker stop $(docker ps -a -q); docker rm $(docker ps -a -q); docker rmi -f $(docker images -aq); sudo docker run -p 80:8080 -d josealejo0812/simple-web-server:latest ;exit 0',
+                                    execTimeout: 600000,
+                                    flatten: false,
+                                    makeEmptyDirs: false,
+                                    noDefaultExcludes: false,
+                                    patternSeparator: '[, ]+',
+                                    remoteDirectory: '',
+                                    remoteDirectorySDF: false,
+                                    removePrefix: '', sourceFiles: ''
+                                )
+                            ],
+                            usePromotionTimestamp: false,
+                            useWorkspaceInPromotion: false,
+                            verbose: false
+                        )
+                    ]
+                )
+            }
+        }
+    }
+}
